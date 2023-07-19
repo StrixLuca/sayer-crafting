@@ -223,64 +223,75 @@ function OpenCraftMenu(itemlist, Emote)
     local XP = QBCore.Functions.GetPlayerData().metadata['sayercraftxp']
     local Needed = Config.Levels[LVL].NextLevel
     local Next = (Needed - XP)
-    local columns = {
-        {header = List.Label, isMenuHeader = true}, 
-        {header = "Current Level = "..LVL.."! </br> Current XP = "..XP.."! </br> XP Needed For Level "..(LVL+1).." = "..Next.." !", isMenuHeader = true},
+    local menuItems = {
+        {
+            title = List.Label,
+            isMenuHeader = true
+        },
+        {
+            title = "Current Level = "..LVL.."! </br> Current XP = "..XP.."! </br> XP Needed For Level "..(LVL+1).." = "..Next.." !",
+            isMenuHeader = true
+        }
     }
+
     if Config.CustomMenu.HideLockedItems then
         for k, v in ipairs(List.Items) do
-            if QBCore.Shared.Items[v.ItemCode] ~= nil then
-                if LVL >= v.LVLNeeded then
-                    local item = {}
-                    item.header = "<img src=nui://"..Config.CustomMenu.InventoryLink..QBCore.Shared.Items[v.ItemCode].image.." width=35px style='margin-right: 10px'> " .. QBCore.Shared.Items[v.ItemCode].label
-                    local text = ""
-                    for d, j in ipairs(v.Recipe) do
-                        if QBCore.Shared.Items[j.item] ~= nil then
-                            text = text .. "- " .. QBCore.Shared.Items[j.item].label .. ": " .. j.amount .. "<br>"
-                        else
-                            print('^1SAYER-CRAFTING: ^7Cannot Find ^4'..j.item..' ^7From ^4Recipes ^7In ^4Shared/Items.lua')
-                        end
+            if QBCore.Shared.Items[v.ItemCode] ~= nil and LVL >= v.LVLNeeded then
+                local itemText = ""
+                for d, j in ipairs(v.Recipe) do
+                    if QBCore.Shared.Items[j.item] ~= nil then
+                        itemText = itemText .. "- " .. QBCore.Shared.Items[j.item].label .. ": " .. j.amount .. "<br>"
+                    else
+                        print('^1SAYER-CRAFTING: ^7Cannot Find ^4'..j.item..' ^7From ^4Recipes ^7In ^4Shared/Items.lua')
                     end
-                    item.text = text
-                    item.params = {event = 'sayer-crafting:MakeItem',args = {type = v.ItemCode, list = List.Items, amount = v.Amount,emote = Emote,xp = v.XPGain,index = k}}
-                    table.insert(columns, item)
                 end
-            else
-                print('^1SAYER-CRAFTING: ^7Cannot Find ^4'..v.ItemCode..' ^7From ^4CraftingTable ^7In ^4Shared/Items.lua')
+
+                local item = {
+                    title = "<img src=nui://"..Config.CustomMenu.InventoryLink..QBCore.Shared.Items[v.ItemCode].image.." width=35px style='margin-right: 10px'> " .. QBCore.Shared.Items[v.ItemCode].label,
+                    description = itemText,
+                    onSelect = function()
+                        TriggerEvent('sayer-crafting:MakeItem', { type = v.ItemCode, list = List.Items, amount = v.Amount, emote = Emote, xp = v.XPGain, index = k })
+                    end
+                }
+                table.insert(menuItems, item)
             end
         end
     else
         for k, v in ipairs(List.Items) do
             if QBCore.Shared.Items[v.ItemCode] ~= nil then
-                local item = {}
-                if Config.CustomMenu.ShowLevelRequired then
-                    item.header = "<img src=nui://"..Config.CustomMenu.InventoryLink..QBCore.Shared.Items[v.ItemCode].image.." width=35px style='margin-right: 10px'> " .. QBCore.Shared.Items[v.ItemCode].label.."! |Level Required = "..v.LVLNeeded
-                else
-                    item.header = "<img src=nui://"..Config.CustomMenu.InventoryLink..QBCore.Shared.Items[v.ItemCode].image.." width=35px style='margin-right: 10px'> " .. QBCore.Shared.Items[v.ItemCode].label
-                end
-                local text = ""
+                local itemText = ""
                 for d, j in ipairs(v.Recipe) do
                     if QBCore.Shared.Items[j.item] ~= nil then
-                        text = text .. "- " .. QBCore.Shared.Items[j.item].label .. ": " .. j.amount .. "<br>"
+                        itemText = itemText .. "- " .. QBCore.Shared.Items[j.item].label .. ": " .. j.amount .. "<br>"
                     else
                         print('^1SAYER-CRAFTING: ^7Cannot Find ^4'..j.item..' ^7From ^4Recipes ^7In ^4Shared/Items.lua')
                     end
                 end
-                item.text = text
-                if LVL >= v.LVLNeeded then
-                    item.params = {event = 'sayer-crafting:MakeItem',args = {type = v.ItemCode, list = List.Items, amount = v.Amount,emote = Emote,xp = v.XPGain,index = k}}
-                else
-                    item.params = {event = 'sayer-crafting:NeedHigherLevel',args = {needed = v.LVLNeeded,level = LVL}}
-                end
-                table.insert(columns, item)
-            else
-                print('^1SAYER-CRAFTING: ^7Cannot Find ^4'..v.ItemCode..' ^7From ^4CraftingTable ^7In ^4Shared/Items.lua')
+
+                local item = {
+                    title = "<img src=nui://"..Config.CustomMenu.InventoryLink..QBCore.Shared.Items[v.ItemCode].image.." width=35px style='margin-right: 10px'> " .. QBCore.Shared.Items[v.ItemCode].label .. (Config.CustomMenu.ShowLevelRequired and " |Level Required = "..v.LVLNeeded or ""),
+                    description = itemText,
+                    onSelect = (LVL >= v.LVLNeeded) and function()
+                        TriggerEvent('sayer-crafting:MakeItem', { type = v.ItemCode, list = List.Items, amount = v.Amount, emote = Emote, xp = v.XPGain, index = k })
+                    end or function()
+                        TriggerEvent('sayer-crafting:NeedHigherLevel', { needed = v.LVLNeeded, level = LVL })
+                    end
+                }
+                table.insert(menuItems, item)
             end
         end
     end
 
-    exports['qb-menu']:openMenu(columns)
+    local contextMenuId = "crafting_menu_"..itemlist -- Create a unique menu identifier
+    lib.registerContext({
+        id = contextMenuId,
+        title = "Crafting Menu",
+        options = menuItems
+    })
+
+    lib.showContext(contextMenuId) -- Open the crafting menu
 end
+
 
 RegisterNetEvent('sayer-crafting:NeedHigherLevel', function(data)
     LVL = data.level
@@ -339,33 +350,47 @@ end
 
 function OpenRecycleMenu()
     local List = Config.Recycle
-    local columns = {
-        {header = "Recycling", isMenuHeader = true}, 
+    local menuItems = {
+        {
+            title = "Recycling",
+            isMenuHeader = true
+        }
     }
+
     for k, v in pairs(List) do
-        if QBCore.Shared.Items[k] ~= nil then
-            if QBCore.Functions.HasItem(k) then
-                local item = {}
-                item.header = "<img src=nui://"..Config.CustomMenu.InventoryLink..QBCore.Shared.Items[k].image.." width=35px style='margin-right: 10px'> " .. QBCore.Shared.Items[k].label
-                local text = ""
-                for d, j in ipairs(List[k]) do
-                    if QBCore.Shared.Items[j.item] ~= nil then
-                        text = text .. "- " .. QBCore.Shared.Items[j.item].label .. " <br>"
-                    else
-                        print('^1SAYER-CRAFTING: ^7Cannot Find ^4'..j.item..' ^7From ^4Recycling ^7In ^4Shared/Items.lua')
-                    end
+        if QBCore.Shared.Items[k] ~= nil and QBCore.Functions.HasItem(k) then
+            local itemText = ""
+            for d, j in ipairs(v) do
+                if QBCore.Shared.Items[j.item] ~= nil then
+                    itemText = itemText .. "- " .. QBCore.Shared.Items[j.item].label .. " <br>"
+                else
+                    print('^1SAYER-CRAFTING: ^7Cannot Find ^4'..j.item..' ^7From ^4Recycling ^7In ^4Shared/Items.lua')
                 end
-                item.text = text
-                item.params = {event = 'sayer-crafting:RecycleItem',args = {type = k}}
-                table.insert(columns, item)
             end
+
+            local item = {
+                title = "<img src=nui://"..Config.CustomMenu.InventoryLink..QBCore.Shared.Items[k].image.." width=35px style='margin-right: 10px'> " .. QBCore.Shared.Items[k].label,
+                text = itemText,
+                onSelect = function()
+                    TriggerEvent('sayer-crafting:RecycleItem', { type = k })
+                end
+            }
+            table.insert(menuItems, item)
         else
             print('^1SAYER-CRAFTING: ^7Cannot Find ^4'..k..' ^7From ^4Recycling ^7In ^4Shared/Items.lua')
         end
     end
 
-    exports['qb-menu']:openMenu(columns)
+    local contextMenuId = "recycle_menu" -- Create a unique menu identifier
+    lib.registerContext({
+        id = contextMenuId,
+        title = "Recycling Menu",
+        options = menuItems
+    })
+
+    lib.showContext(contextMenuId) -- Open the recycling menu
 end
+
 
 RegisterNetEvent('sayer-crafting:RecycleItem', function(data)
     if QBCore.Functions.HasItem(data.type) then
